@@ -15,6 +15,7 @@
 
 #include <mrpt/typemeta/static_string.h>
 
+#include <cstddef>  // std::size_t (Apple: distinct from uint64_t, see below)
 #include <cstdint>
 #include <memory>
 
@@ -150,6 +151,25 @@ MRPT_DECLARE_TTYPENAME(uint16_t)
 MRPT_DECLARE_TTYPENAME(int16_t)
 MRPT_DECLARE_TTYPENAME(uint8_t)
 MRPT_DECLARE_TTYPENAME(int8_t)
+
+// On Apple LP64 targets std::size_t is `unsigned long` whereas uint64_t is
+// `unsigned long long`: distinct types of equal width. The uint64_t
+// specialization above therefore does NOT also cover std::size_t here, unlike
+// glibc/Linux where std::size_t *is* uint64_t. Without a size_t specialization,
+// TTypeName<std::size_t> falls through to the primary template and instantiates
+// std::size_t::getClassName(), i.e.
+//     error: type 'unsigned long' cannot be used prior to '::'
+// as soon as a std::map<size_t, ...> / std::set<size_t> / std::vector<size_t>
+// (etc.) is (de)serialized -- e.g. mp2p_icp's LogRecord. Delegate to the
+// uint64_t name so the emitted type string is identical across platforms and
+// previously stored data stays portable.
+#if defined(__APPLE__)
+template <>
+struct TTypeName<std::size_t>
+{
+  constexpr static auto get() { return TTypeName<uint64_t>::get(); }
+};
+#endif
 
 /** @} */
 
